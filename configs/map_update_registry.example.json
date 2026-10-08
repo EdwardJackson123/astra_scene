@@ -1,0 +1,25 @@
+{
+  "scene_root": "/srv/astra_scene",
+  "results_url": "http://localhost:8065/results",
+  "runtime": {
+    "python": "/path/to/python/bin/python",
+    "game_python": "/path/to/game_python/bin/python",
+    "backend_python": "/path/to/backend_python/bin/python"
+  },
+  "maps": [
+    {
+      "map_id": "example-map",
+      "map_fingerprint": "REPLACE_WITH_DATASET_FINGERPRINT",
+      "base_map": "/data/maps/example/scene.ply",
+      "base_sha256": "REPLACE_WITH_PLY_SHA256",
+      "reference_root": "/data/maps/example/reference",
+      "reference_scene": "/data/maps/example/reference_scene",
+      "floor_search_z": [
+        -0.5,
+        0.3
+      ],
+      "stable_upper_z": 2.3,
+      "stable_lower_z": 0.1
+    }
+  ]
+}

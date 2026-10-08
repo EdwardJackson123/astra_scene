@@ -1,0 +1,11 @@
+# 当前架构与代码边界
+
+cloud_server.py负责任务创建/分块上传/提交；automatic_source.py准备数据与SfM；automatic_update.py编排、固化任务代码快照及阶段检查点。protected_takeover.py执行有界设备融合和建筑保护。
+
+grid_pipeline.py是正式栅格统一入口，当前顺序为观测基线、gaussian_surface_grid、semantic_gaussian_grid、binary_grid、object_clearance_grid。最终产物和ZIP由同一事务校验；grid_common.py集中纯栅格分类/统计，避免导入完整后端。
+
+object_clearance_grid以同一审核设备和高度层的三维点支持提出短断口；仅保留不损失五档参考圆形可放置中心的补缝。参考半径0.1–0.3地图单位不等于已经标定的机器人碰撞体；尺度与实机验证限制仍保留。
+
+部分历史/实验脚本仍保留原文件名，原因是历史任务或动态CLI调用可能引用它们。它们不因出现在目录中而成为默认后端。默认以cloud_server.py→automatic_update.py→grid_pipeline.py调用链为准，旧任务应保留自己的code快照。
+
+本次整理未移动这些模块到新Python包命名空间，以免破坏同目录绝对导入和历史快照。下一步若包化，必须同步迁移CLI、快照生成和测试。自有算法源代码与第三方vendor分离；大文件、真实机器配置及令牌不入库。

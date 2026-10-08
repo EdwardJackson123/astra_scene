@@ -1,0 +1,10 @@
+numpy
+scipy
+Pillow
+PyYAML
+requests
+opencv-python-headless
+plyfile
+h5py
+Flask
+paramiko

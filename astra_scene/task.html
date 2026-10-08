@@ -1,0 +1,40 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>场景更新进度</title>
+<style>*{box-sizing:border-box}body{margin:0;background:#f4f6f5;color:#203b32;font:16px/1.65 system-ui}main{max-width:1050px;margin:36px auto;padding:0 24px}a{color:#216e52}h1{margin-bottom:8px}.card{background:white;padding:24px;border:1px solid #dce4dd;border-radius:14px;margin:20px 0}.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;list-style:none;padding:0}.steps li{padding:16px;background:#e9eeea;border-radius:10px}.steps .current{background:#206f51;color:white}.steps .done{background:#dcefe3}.muted{color:#6a7b72}.button,button{display:inline-block;padding:11px 20px;border:0;border-radius:8px;background:#226e51;color:white;text-decoration:none;font:600 15px system-ui;cursor:pointer;margin:8px 10px 8px 0}button:disabled{opacity:.5}.secondary{background:#eaf2ed;color:#25634b}.warning{background:#fff5e5;border-color:#efd2a0}.row{display:flex;gap:14px;flex-wrap:wrap}.row>div{flex:1;min-width:200px}details{margin-top:14px}#error{white-space:pre-wrap;overflow-wrap:anywhere}@media(max-width:600px){.steps{grid-template-columns:1fr 1fr}main{padding:0 14px}}[hidden]{display:none!important}</style>
+<main><a href="/">← 全部任务</a><h1 id="title">正在读取任务…</h1><p class="muted" id="method"></p>
+<ol class="steps" id="steps"><li>1 · 准备视频与定位</li><li>2 · 编辑变化区域</li><li>3 · 生成候选</li><li>4 · 检查结果</li></ol>
+<section class="card" aria-live="polite"><h2 id="state">正在连接…</h2><p id="next"></p><div id="liveProgress" aria-live="polite"></div><div id="actions"></div><details id="diagnostics" hidden><summary>诊断信息</summary><p id="error"></p></details></section>
+<section class="card" id="deliverables" hidden><h2>结果检查</h2><p>先检查不同方向的模型外观，再核对导航与定位图库。文件存在不等于验收通过。</p><div class="row"><div><b>模型与范围</b><p id="modelResult"></p></div><div><b>导航栅格</b><p id="navResult"></p></div><div><b>定位图库</b><p id="refResult"></p></div></div></section>
+<section class="card warning"><b>当前地图继续使用原数据</b><p>本页面只生成独立候选，不发布到机器人。删除物体会检查导航腾空证据；证据不足的位置保留占用。</p></section>
+<section id="childrenCard" class="card" hidden><h2>这段视频生成的候选</h2><div id="children"></div></section>
+</main><script>
+const id=location.pathname.split('/').pop(),$=x=>document.getElementById(x);
+const names={capture:'准备采集与重建',auto_evidence:'识别变化并准备实拍证据',ai_review:'AI筛选任务影响',auto_fusion:'分割与多视角范围检查',candidate:'生成局部更新候选',spirula_train_sh0:'训练与原图一致的 SH 0 阶模型',spirula:'准备高质量重建',spirula_frames:'筛选高质量训练画面',spirula_sfm:'求解相机与场景结构',spirula_train:'训练高质量 3DGS',spirula_validate:'选择验证效果更好的检查点',merge:'复用重建并合并所选区域',queued:'等待处理',starting:'准备启动',extract:'筛选视频画面',localize:'定位到原地图',reconstruct:'重建几何',anchor_render:'准备原地图对照',bundle:'校正相机位姿与尺度',geometry_check:'检查几何',update:'更新选区',refine:'训练局部模型',artifacts:'检查模型并生成导航栅格',references:'生成定位图库',finalize:'检查完整候选包','prepare-base':'读取原模型',render:'渲染原模型',guarded:'重建选区',scope_audit:'核对范围外数据'};
+const states={no_update:'本次未生成地图候选',queued:'排队中',starting:'准备处理',running:'处理中',geometry_ready:'可以编辑区域',candidate_ready:'候选检查完成',needs_review:'需要人工复查',failed:'处理未完成'};
+function link(text,url,secondary=false){let a=document.createElement('a');a.textContent=text;a.href=url;a.className='button'+(secondary?' secondary':'');$('actions').append(a)}
+let lastSignature='',resultsLoaded=false;
+async function refresh(){try{const r=await fetch('/api/tasks/'+id);if(r.status===401){location='/login';return}const d=await r.json();if(!r.ok)throw Error(d.error);$('title').textContent=d.title;$('method').textContent='实际方法：'+d.backend;$('state').textContent=d.can_select?'选择需要更新的区域':names[d.stage]||states[d.state]||'查看结果';
+const auto=d.kind==='automatic';
+const pr=d.progress; $('liveProgress').replaceChildren(); if(pr&&['running','starting','queued'].includes(d.state)){ $('state').textContent=pr.label;const line=document.createElement('p');line.textContent='最近阶段/日志更新：'+(pr.updated?new Date(pr.updated*1000).toLocaleString():'等待记录')+(pr.stale?' · 较长时间没有新进度，不代表任务失败':'');$('liveProgress').append(line);if(pr.training){let bar=document.createElement('progress');bar.max=pr.training.total;bar.value=pr.training.step;bar.style.width='100%';let text=document.createElement('p');text.textContent=pr.training.step+' / '+pr.training.total+' 步（'+pr.training.percent+'%） · 训练日志预计剩余 '+pr.training.eta+'，不含后续筛选和验收';$('liveProgress').append(bar,text);}} 
+if(auto){const labels=['1 · 采集与重建','2 · AI筛选与范围检查','3 · 生成局部候选','4 · 查看结果'];[...$('steps').children].forEach((x,i)=>x.textContent=labels[i]);}
+const busy=['queued','starting','running'].includes(d.state),step=auto?(busy?(['auto_evidence','ai_review','auto_fusion'].includes(d.stage)?1:d.stage==='candidate'?2:0):3):d.kind==='experiment'?3:d.kind==='candidate'?(busy?2:3):(d.can_select?1:0);
+[...$('steps').children].forEach((x,i)=>x.className=i===step?'current':i<step?'done':'');
+$('next').textContent=d.state==='queued'?'任务已经保存，轮到后自动处理。可以关闭此页，稍后从任务列表继续。':busy?'处理在服务器继续进行，页面每隔几秒更新。无需重复提交。':d.state==='failed'?'原视频和选区仍保留；可以查看诊断并重试。':d.quality.legacy?'这是旧版验收门槛生成的历史候选，需要重新验证；不能视为当前质量验收通过。':d.can_select?'打开编辑器，选择需要改变的区域。草稿自动保存；不需要重新上传视频。':d.kind==='experiment'?'这是方法对比实验。请查看模型和连续视角；它不包含可发布的导航与定位候选包。':'打开结果报告，检查模型、导航栅格和定位图库。需要复查的候选不能当作已验收结果。';
+$('diagnostics').hidden=d.state!=='failed';$('error').textContent=d.error||'';
+const sig=JSON.stringify([d.state,d.can_select,d.has_report,d.can_retry,d.draft]);
+if(sig!==lastSignature){lastSignature=sig;$('actions').replaceChildren();
+if(d.can_select)link(d.draft?'继续编辑草稿':'选择变化区域','/select3d/'+id);
+if(d.has_report)link('打开结果报告','/results/'+id+'/index.html',d.can_select);
+if(auto&&d.automatic_source&&!busy)link('高级：调整更新范围','/select3d/'+d.automatic_source,true);
+if(d.parent)link('返回原视频编辑','/select3d/'+d.parent,true);
+if(d.can_retry){let b=document.createElement('button');b.textContent='用已保存的数据重试';b.onclick=async()=>{b.disabled=true;try{let x=await fetch('/api/tasks/'+id+'/retry',{method:'POST',headers:{'X-Astra-Request':'1'}});let v=await x.json();if(!x.ok)throw Error(v.error);location='/tasks/'+v.id}catch(e){$('next').textContent=e.message;b.disabled=false}};$('actions').append(b)}}
+$('childrenCard').hidden=!d.children.length;$('children').replaceChildren();for(const child of d.children){let a=document.createElement('a');a.href='/tasks/'+child.id;a.textContent=child.title+' · '+(states[child.state]||child.state);let p=document.createElement('p');p.append(a);$('children').append(p)}
+if(d.has_report&&!busy&&!resultsLoaded&&!auto){resultsLoaded=true;$('deliverables').hidden=false;
+const exists=async p=>{let r=await fetch('/results/'+id+'/'+p,{method:'HEAD'});return r.ok};
+let [nav,refs]=await Promise.all([exists('map.png'),exists('references.json')]);
+$('modelResult').textContent=d.quality.legacy?'旧版检查结果，需按新门槛重新验证。':d.state==='candidate_ready'?'自动检查已完成，仍需复访确认。':'已有对比报告，尚未通过完整验收。';
+$('navResult').textContent=nav?'栅格变化 '+(d.quality.grid_changed??'待核对')+' 格；已清除占用 '+(d.quality.grid_cleared??'待核对')+' 列。'+(d.quality.floor_verified===false?'地面高度尚未现场确认。':''):'本结果没有导航候选。';
+$('refResult').textContent=refs?'定位候选已生成；请在报告核对图库检查。':'本结果没有定位图库候选。';
+}
+}catch(e){$('state').textContent='暂时无法读取进度';$('next').textContent=e.message+'；将自动重试。'}}
+refresh();setInterval(refresh,4000);
+</script></html>

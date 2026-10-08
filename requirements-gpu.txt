@@ -1,0 +1,6 @@
+# Install PyTorch for the machine CUDA version first.
+-r requirements.txt
+torch
+gsplat
+pycolmap
+# VPS engine, Spirula and segmentation models are external; see docs/SETUP.md.
