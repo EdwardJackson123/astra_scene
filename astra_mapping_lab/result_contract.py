@@ -1,6 +1,7 @@
 """Separate artifact readiness from unverified navigation acceptance."""
 def navigation_assessment(report):
     blockers=[]
+    if report.get('alignment_accepted') is False: blockers.append('ALIGNMENT_QUALITY_FAILED')
     if report.get('metric_scale_conflict',True): blockers.append('METRIC_SCALE_CONFLICT_OR_UNKNOWN')
     if report.get('absolute_metric_accuracy_verified') is not True: blockers.append('METRIC_SCALE_NOT_VERIFIED')
     if report.get('robot_clearance_verified') is not True: blockers.append('ROBOT_CLEARANCE_NOT_VERIFIED')

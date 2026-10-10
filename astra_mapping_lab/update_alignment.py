@@ -11,11 +11,12 @@ from scipy.optimize import least_squares
 from map_update import fit_similarity
 from astra_scene.io import write_json,sha256
 from update_context import settings
+from alignment_policy import preview_allowed,usable
 CFG=settings();OUT=Path(CFG['alignment']);SOURCE=Path(CFG['source'])
 BASE=Path(CFG['base_map'])
 if CFG.get('apply_only'):
     report=json.loads((OUT/'similarity_alignment.json').read_text())
-    if not report['accepted'] or report['base_sha256']!=sha256(BASE) or report['source_sha256']!=sha256(SOURCE/'manifest.json'):raise ValueError('alignment checkpoint mismatch')
+    if not usable(report) or report['base_sha256']!=sha256(BASE) or report['source_sha256']!=sha256(SOURCE/'manifest.json'):raise ValueError('alignment checkpoint mismatch')
     s=report['scale'];R=np.array(report['rotation']);t=np.array(report['translation'])
 else:
     data=np.load(OUT/'learned_alignment_pairs.npz');a,b,ids=data['local'],data['map'],data['view']
@@ -43,8 +44,10 @@ else:
         return dict(matches=len(e),inliers=int(good.sum()),inlier_fraction=float(good.mean()),median_inlier_m=float(np.median(e[good])),median_all_m=float(np.median(e)),p90_all_m=float(np.percentile(e,90)))
     accepted=.85<s<1.15 and stats(held)['inlier_fraction']>=.4 and stats(held)['inliers']>=30 and stats(held)['median_inlier_m']<.1 and sum(v['inliers']>=8 for v in notes if v['partition']=='fit')>=6 and sum(v['inliers']>=8 for v in notes if v['partition']=='holdout')>=3
     report=dict(accepted=bool(accepted),scale=s,rotation=R.tolist(),translation=t.tolist(),method='single global Sim3; SuperPoint/LightGlue to original RGB/depth; >=2 reference consensus; floor and high static structures; robust fit',fit=stats(fit),holdout=stats(held),views=notes,base_sha256=sha256(BASE),source_sha256=sha256(SOURCE/'manifest.json'),metric_scale_conflict=abs(s-1)>.05,coordinate_policy='original_map_coordinate_units; scale sensor depth and local camera translations consistently',absolute_metric_accuracy_verified=False,navigation_deployment_accepted=False,holdout_note='Excluded from fitting; development regression after earlier alignment diagnostics, not independent revisit truth')
+    report['preview_only']=not accepted and preview_allowed(report,CFG.get('alignment_policy','strict'))
+    report['quality_warning']=None if accepted else 'ALIGNMENT_QUALITY_FAILED'
     write_json(OUT/'similarity_alignment.json',report);print(json.dumps(report),flush=True)
-    if not accepted:raise ValueError('similarity_alignment_gate_failed')
+    if not usable(report):raise ValueError('similarity_alignment_gate_failed')
 if CFG.get('fresh_ply'):
     with (ROOT/'runs/gpu.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX)

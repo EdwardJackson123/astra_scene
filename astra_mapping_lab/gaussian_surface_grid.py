@@ -30,7 +30,7 @@ def run(context,baseline,dest,model_ply=None):
         uv,ok=grid_cells(p,meta,shape);ix=np.flatnonzero(ok);ok[ix]&=allowed[uv[ix,1],uv[ix,0]];return uv,ok
     with (root/'runs/gpu.lock').open('a') as lock:
         # Do not displace another reconstruction job.
-        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        fcntl.flock(lock,fcntl.LOCK_EX)
         from vps.refinement.gaussian_renderer import GsplatGaussianRenderer
         renderer=GsplatGaussianRenderer('cuda')
         for j,i in enumerate(views):

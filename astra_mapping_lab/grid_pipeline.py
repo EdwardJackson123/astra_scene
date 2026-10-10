@@ -41,6 +41,9 @@ def build(context,destination=None):
         if backend=='gaussian_surface':
             from object_clearance_grid import apply
             report=apply(context,final,report)
+        registration=json.loads((Path(cfg['alignment'])/'similarity_alignment.json').read_text()) if cfg.get('alignment') else {}
+        report['alignment_accepted']=registration.get('accepted')
+        report['preview_only']=registration.get('preview_only',False)
         report.update(schema_version=2,grid_backend=backend,grid_pipeline_version='object_clearance_binary_v1',
             candidate_map_sha256=digest(final/'map.png'),navigation_assessment=navigation_assessment(report))
         # Keep the cleanup audit bound to the committed candidate.

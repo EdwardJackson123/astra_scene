@@ -105,6 +105,7 @@ def execute(context, notify, runner=bounded_run, phase='all', checkpointing=True
         raise ValueError('任务代码快照被修改，拒绝混用版本')
     identity=dict(profile=cfg.get('profile'),source=source_identity(Path(cfg['source'])) if checkpointing else '',
                   base=cfg.get('base_sha256'),roi=cfg.get('roi'),code=code)
+    identity['alignment_policy']=cfg.get('alignment_policy','strict')
     identity['fusion_policy']=cfg.get('fusion_policy',LEGACY_FUSION_POLICY)
     if unified:identity['grid_backend']=cfg.get('grid_backend',DEFAULT_BACKEND)
     for stage,part,command,outputs in steps:
@@ -141,7 +142,7 @@ def initialize(cloud,key,source,package):
     context=out/'context.json'
     if context.exists():
         cfg=json.loads(context.read_text())
-        if cfg['profile']!=PROFILE or cfg['input_source_sha256']!=sha256(source/'manifest.json') or cfg['roi']!=roi or cfg.get('grid_backend','rgbd')!=backend or cfg.get('fusion_policy',LEGACY_FUSION_POLICY)!=fusion:
+        if cfg['profile']!=PROFILE or cfg['input_source_sha256']!=sha256(source/'manifest.json') or cfg['roi']!=roi or cfg.get('grid_backend','rgbd')!=backend or cfg.get('fusion_policy',LEGACY_FUSION_POLICY)!=fusion or cfg.get('alignment_policy','strict')!=spec.get('alignment_policy','strict'):
             raise ValueError('任务参数或源数据已变化，请建立新版本')
         return context,registry
     out.mkdir(parents=True,exist_ok=False);snapshot=out/'code';snapshot.mkdir()
@@ -150,7 +151,7 @@ def initialize(cloud,key,source,package):
     target=p/'update_source';selected_source(source,package,target,roi)
     alignment=out/'alignment';alignment.mkdir()
     cfg={**registry['runtime'],**selected,'output':str(out),'alignment':str(alignment),'source':str(target),
-         'fresh_ply':None,'roi':roi,'profile':PROFILE,'grid_backend':backend,'fusion_policy':fusion,'job_id':key,'code_root':str(snapshot),
+         'alignment_policy':spec.get('alignment_policy','strict'),'fresh_ply':None,'roi':roi,'profile':PROFILE,'grid_backend':backend,'fusion_policy':fusion,'job_id':key,'code_root':str(snapshot),
          'code_snapshot_sha256':signature({p.name:sha256(p) for p in snapshot.glob('*.py')}),
          'input_source_sha256':sha256(source/'manifest.json')}
     atomic(context,cfg)
@@ -206,7 +207,9 @@ def run(cloud,key,source,result):
 
     review=json.loads((out/'artifacts/structural_review.json').read_text());url=registry['results_url'].rstrip('/')+'/'+out.name+'/index.html'
     grid=json.loads((out/'artifacts/navigation_candidate/navigation_update.json').read_text())
-    return dict(state=('CANDIDATE_READY' if review['passed'] else 'QUALITY_FAILED'),profile=PROFILE,result_url=url,output=str(out),candidate_url=url.removesuffix('index.html')+'scene.ply',
+    registration=json.loads((Path(cfg['alignment'])/'similarity_alignment.json').read_text())
+    preview=registration.get('preview_only',False)
+    return dict(alignment_accepted=registration['accepted'],preview_only=preview,state=('PREVIEW_ONLY' if preview else ('CANDIDATE_READY' if review['passed'] else 'QUALITY_FAILED')),profile=PROFILE,result_url=url,output=str(out),candidate_url=url.removesuffix('index.html')+'scene.ply',
                 structural_review_passed=review['passed'],quality_accepted=False,published=False,navigation_updated=False,
                 navigation_candidate_ready=True,navigation_candidate_url=url.removesuffix('index.html')+'navigation_candidate/index.html',
                 reference_database_updated=False,grid_backend=grid.get('grid_backend',DEFAULT_BACKEND),fusion_policy=cfg.get('fusion_policy',LEGACY_FUSION_POLICY),

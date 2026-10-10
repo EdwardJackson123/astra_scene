@@ -38,6 +38,9 @@ class Cloud:
         from grid_pipeline import BACKENDS,DEFAULT_BACKEND
         from instance_policy import DEFAULT_FUSION_POLICY,FUSION_POLICIES
         spec=dict(spec)
+        from alignment_policy import POLICIES
+        spec.setdefault('alignment_policy','preview')
+        if spec['alignment_policy'] not in POLICIES:raise ValueError('unknown alignment policy')
         spec.setdefault('grid_backend',DEFAULT_BACKEND)
         spec.setdefault('fusion_policy',DEFAULT_FUSION_POLICY)
         if spec['fusion_policy'] not in FUSION_POLICIES:raise ValueError('unknown fusion policy')
@@ -126,7 +129,10 @@ class Cloud:
         self.update(key,sfm_rgbd_report=package_spec.get('sfm_rgbd_report'),reconstruction_scope=package_spec['reconstruction_scope'],keyframe_selection=package_spec['keyframe_selection'])
         if automatic:
             from automatic_update import preflight
-            if not preflight(self,key,source,package):return
+            try:
+                if not preflight(self,key,source,package):return
+            except subprocess.CalledProcessError as e:
+                self.update(key,preflight_warning=str(e),map_update=dict(state='PREFLIGHT_FAILED',quality_accepted=False,published=False))
         self.update(key,state='WAITING_GPU')
         with open(os.environ.get('ASTRA_GPU_LOCK','/home/xujie/astra_scene/runs/gpu.lock'),'a') as lock:
             fcntl.flock(lock,fcntl.LOCK_EX)

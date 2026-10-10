@@ -32,7 +32,8 @@ def setup(args):
     data = json.loads((alignment/'aligned_frames.json').read_text())
     registration = json.loads((alignment/'similarity_alignment.json').read_text())
     base = Path(args.base_map).resolve()
-    if not registration['accepted'] or sha256(base) != registration['base_sha256']:
+    from alignment_policy import usable
+    if not usable(registration) or sha256(base) != registration['base_sha256']:
         raise ValueError('alignment/source map mismatch')
     reference_root=getattr(args,'reference_root',None)
     if reference_root is None and base.parent.name=='ply' and base.parents[2].name=='outputs':

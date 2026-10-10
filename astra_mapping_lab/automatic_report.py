@@ -25,6 +25,9 @@ def build(out):
                 canvas.paste(Image.open(review/f'{key}_{label}.png'),(640*x,520*y+40))
         name=f'robot_views_{j//3+1}.jpg';canvas.save(dest/name,quality=94);pages.append(name)
     h='<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>自动地图更新候选</title><style>body{font:17px/1.7 system-ui;max-width:1500px;margin:auto;padding:24px}img{width:100%}td,th{padding:10px;border:1px solid #ccc}table{border-collapse:collapse}</style><h1>设备与局部地面更新候选</h1>'
+    registration=json.loads((out/'alignment/similarity_alignment.json').read_text())
+    if not registration.get('accepted',False):
+        h+='<p><strong>配准质量未通过：此结果仅供预览，不代表融合或导航验收通过。</strong></p>'
     h+='<p>自动流程：当前任务对齐 → RGB-D 变化证据 → 几何分流 → 必要的 DeepSeek 判断 → 分割与连通补全 → 冲突检查 → 建筑保护融合 → 留出视角检查。ROI 仅限定授权范围。天花板、窗户、墙和室外背景受保护；允许设备区域内的局部地面更新。分类和配准仍可能有误。</p>'
     h+='<p><strong>自动处理结果；正式原地图、导航栅格和定位图库未修改。</strong>几何检查：'+('通过离线阈值，仍需独立验证。' if structural['passed'] else '未通过，本次结果未应用。需要改善覆盖或配准后重试。')+'</p>'
     nav=dest/'navigation_candidate/navigation_update.json'
